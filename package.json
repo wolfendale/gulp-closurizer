@@ -1,0 +1,21 @@
+{
+  "name": "gulp-closure-compiler",
+  "version": "0.0.0",
+  "description": "A gulp plugin for the Google Closure Compiler",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Michael Wolfendale",
+  "license": "ISC",
+  "dependencies": {
+    "gulp-util": "~3.0.1",
+    "tmp": "0.0.24",
+    "q": "~1.0.1",
+    "lodash": "~2.4.1",
+    "through2": "~0.6.2"
+  },
+  "devDependencies": {
+    "gulp": "~3.8.8"
+  }
+}
