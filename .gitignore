@@ -1,3 +1,13 @@
 # ignore module dependencies
 # use npm install when checking out instead
 node_modules
+
+# ignore the closure compiler
+# download manually / through bower instead
+closure
+
+# ignore testing output
+output
+
+# ignore testing input
+src/*

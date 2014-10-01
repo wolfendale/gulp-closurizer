@@ -1,9 +1,19 @@
 var gulp		= require('gulp'),
 	compiler 	= require('./index.js')({
 
-		compiler_level	: 'ADVANCED_OPTIMIZATIONS',
-		angular_pass	: null
-	}, true);
+		debug				: false
+	},
+	{
+		compilation_level	: 'ADVANCED_OPTIMIZATIONS',
+		angular_pass		: null,
+		warning_level		: 'VERBOSE',
+		externs				: [
+			'closure/externs/angular.js'
+		]
+	},
+	{
+		'-XX:+TieredCompilation' : null
+	});
 
 gulp.task('default', function() {
 

@@ -1,105 +1,57 @@
-var q		= require('q'),
-	_		= require('lodash'),
-	fs 		= require('fs'),
-	through	= require('through2'),
-	tmp		= require('tmp'),
-	gutil	= require('gulp-util'),
-	child_p	= require('child_process'),
+var q			= require('q'),
+	_			= require('lodash'),
+	fs 			= require('fs'),
+	path		= require('path'),
+	through 	= require('through2'),
+	tmp			= require('tmp'),
+	gutil		= require('gulp-util'),
+	child_p		= require('child_process'),
 
-	plugin 	= function(opts, debug) {
+	plugin 		= function(opts, c_opts, j_opts) {
 
-	/**
-	 *	debug prevents the tmp dirs from being deleted.
-	 */
-	debug 	= debug || false,
-	opts	= opts	|| {};
+	opts 			= opts 				|| {};
+	opts.debug		= opts.debug 		|| false;
+	opts.compiler	= opts.compiler 	|| path.resolve('closure/compiler.jar');
+	opts.flagfile 	= opts.flagfile 	|| 'flagfile.tmp'
+	opts.output		= opts.output		|| 'output.min.js'
 
-	var files 	= [],
+	c_opts 			= c_opts || {};
 
-		getTmpFiles = function() {
+	// Unsupported compiler options.
+	delete c_opts.flag_file;
+	delete c_opts.js_output_file;
 
-		return q.ninvoke(tmp, 'dir', {dir: '.', unsafeCleanup: !debug})	
-		.then(function(tmpdir) {
+	j_opts			= j_opts || {};
 
-			tmpdir = tmpdir[0];
-			return q.all(_.map(files, function(file) {
+	var files 		= [],
+		Compiler 	= require('./compiler')(opts),
 
-				var deferred	= q.defer();
+	collect 		= function(file, encoding, fn) {
 
-				q.ninvoke(tmp, 'file',
-					{
-						dir 		: tmpdir,
-						template 	: file.relative + '-XXXXXX'
-					})
-				.then(function(path) {
-
-					path = tmpdir + '/' + path[0],
-
-					q.ninvoke(fs, 'writeFile',
-						path,
-						file.contents)
-					.then(function() {
-
-						deferred.resolve(path);
-					});
-				})
-				.fail(function(e) {
-
-					deferred.reject(e);
-				});
-
-				return deferred.promise;
-			}));
-		})
-		.fail(function(e) {
-
-			console.log(e);
-		});
-	},
-
-		jsFlag 			= function(files) {
-
-		return _.reduce(files, function(flags, file) {
-
-			return [flags, '"', file, '" '].join('');
-		}, '--js=');
-	},
-
-		serializeFlags	= function(opts) {
-
-		return _.reduce(opts, function(flags, val, key) {
-
-			var a = [flags, ' --', key];
-
-			if (!(_.isUndefined(val) || _.isNull(val)))
-				a = a.concat(['=', val]);
-
-			return a.join('');
-		}, '');
-	},
-
-		collect 		= function(file, encoding, fn) {
-
-		if (file.isNull()) return fn();
-		if (file.isStream()) return; // Support single file streaming?
+		if (file.isNull() || file.isStream()) return fn();
 
 		files.push(file);
-		fn();
+		return fn();
 	},
-		compile			= function() {
 
-		if (files.length < 1)
-			return;
+	flush			= function(fn) {
 
-		getTmpFiles()
-		.then(function(files) {
+		var file 		= files[0].clone(),
+			compiler 	= new Compiler(opts.compiler, c_opts, j_opts),
+			self		= this;
 
-			//console.log(serializeFlags(opts));
-			console.log(jsFlag(files));
+		file.path 		= file.base + opts.output;
+
+		compiler.compile(files)
+		.then(function(contents) {
+
+			file.contents = contents;
+			self.push(file);
+			fn();
 		});
 	};
 
-	return through.obj(collect, compile);
+	return through.obj(collect, flush);
 };
 
 module.exports = plugin;
