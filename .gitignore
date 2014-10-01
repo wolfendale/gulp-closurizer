@@ -1,0 +1,3 @@
+# ignore module dependencies
+# use npm install when checking out instead
+node_modules
