@@ -1,4 +1,4 @@
-gulp-closure-compiler
-=====================
+gulp-closure
+============
 
 closure compiler plugin for gulp.
