@@ -36,16 +36,17 @@ var q			= require('q'),
 
 	flush			= function(fn) {
 
-		var file 		= files[0].clone(),
-			compiler 	= new Compiler(opts.compiler, c_opts, j_opts),
-			self		= this;
-
-		file.path 		= file.base + opts.output;
+		var self 		= this,
+			compiler 	= new Compiler(opts.compiler, c_opts, j_opts);
 
 		compiler.compile(files)
 		.then(function(contents) {
 
-			file.contents = contents;
+			var file 		= files[0].clone();
+
+			file.path 		= file.base + opts.output;
+			file.contents 	= contents;
+			
 			self.push(file);
 			fn();
 		});

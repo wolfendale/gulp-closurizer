@@ -49,8 +49,6 @@ module.exports = function(opts) {
 		return '--' + util.formatKV(val, key);
 	};
 
-
-
 	util.getTmpDir	= function() {
 
 		var deferred = q.defer();
