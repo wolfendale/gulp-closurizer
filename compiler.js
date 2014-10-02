@@ -2,27 +2,26 @@ var child_p 	= require('child_process'),
 	q			= require('q'),
 	_			= require('lodash'),
 	fs 			= require('fs'),
+	Serializer	= require('./serializer'),
 	path		= require('path');
 
 module.exports 	= function(opts) {
 
-	var util 	= require('./util')(opts);
+	// TODO: Phase out the utils module as most functionality is inside serializer.
+	var util 		= require('./util')(opts),
+		serializer 	= new Serializer();
 
+	/**
+	 *	@constructor
+	 *	
+	 *	This sets up the compiler state with serialized flags for both the compiler
+	 *	and for the java instance.
+	 */
 	var Compiler 	= function(fPath, c_opts, j_opts) {
 
 		this.path 		= fPath;
-		
-		var c_opts		= util.serializeObj(c_opts, util.formatFlags),
-			j_opts 		= util.serializeObj(j_opts, util.formatKV),
-			args		= ['-jar', this.path];
-
-		if (!_.isEmpty(j_opts)) {
-
-			args 		= [_.head(args), j_opts].concat(_.rest(args));
-		}
-
-		this.args 		= args;
-		this.c_opts		= c_opts;
+		this.c_opts		= serializer.serialize(c_opts);
+		this.args 		= ['-jar', serializer.serialize(j_opts), this.path];
 	};
 
 	Compiler.prototype.compile = function(files) {
@@ -37,7 +36,7 @@ module.exports 	= function(opts) {
 			.then(function(files) {
 
 				return util.mkFlagFile(tmpdir, self.c_opts + ' ' +
-						util.serializeObj(files, util.formatV));
+						serializer.serialize({ '--js' : files }));
 			});
 		})
 		.then(function(flagfile) {

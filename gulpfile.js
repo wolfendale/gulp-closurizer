@@ -1,13 +1,13 @@
 var gulp		= require('gulp'),
 	compiler 	= require('./index.js')({
 
-		debug				: false
+		debug					: false
 	},
 	{
-		compilation_level	: 'ADVANCED_OPTIMIZATIONS',
-		angular_pass		: null,
-		warning_level		: 'VERBOSE',
-		externs				: [
+		'--compilation_level'	: 'ADVANCED_OPTIMIZATIONS',
+		'--angular_pass'		: null,
+		'--warning_level'		: 'VERBOSE',
+		'--externs'				: [
 			'closure/externs/angular.js'
 		]
 	},
