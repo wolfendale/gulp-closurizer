@@ -1,8 +1,5 @@
 var gulp		= require('gulp'),
-	compiler 	= require('./index.js')({
-
-		debug					: false
-	},
+	compiler 	= require('./index.js')({},
 	{
 		'--compilation_level'	: 'ADVANCED_OPTIMIZATIONS',
 		'--angular_pass'		: null,

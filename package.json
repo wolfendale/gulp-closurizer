@@ -1,6 +1,6 @@
 {
   "name": "gulp-closure",
-  "version": "0.9.0",
+  "version": "0.9.9",
   "description": "A gulp plugin for the Google Closure Compiler",
   "main": "index.js",
   "scripts": {
