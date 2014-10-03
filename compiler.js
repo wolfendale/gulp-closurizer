@@ -3,7 +3,7 @@ var child_p 	= require('child_process'),
 	_			= require('lodash'),
 	gutil 		= require('gulp-util'),
 	tmp 		= require('tmp'),
-	fs 			= require('fs'),
+	fs 			= require('fs-extra'),
 	Serializer	= require('./serializer'),
 	path		= require('path');
 
@@ -70,7 +70,7 @@ module.exports 	= function(opts) {
 				var deferred	= q.defer(),
 					filePath	= path.resolve(tmpdir + '/' + file.relative);
 
-				q.ninvoke(fs, 'writeFile',
+				q.ninvoke(fs, 'outputFile',
 					filePath,
 					file.contents)
 				.then(function() {
