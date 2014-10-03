@@ -1,5 +1,13 @@
-var _ 	= require('lodash');
+var _	 	= require('lodash'),
+	gutil	= require('gulp-util');
 
+/*
+ *	Class for dealing serializing objects into command line arguments.
+ *	Other implementations prefix flags automatically and other magic,
+ * 	however I don't see much point, this will pass compiler/java flags
+ *	straight through so make sure they're defined in an object with
+ * 	the keys delimited by ''
+ */
 var Serializer = function(opts) {
 
 	opts 		= opts || {};
@@ -11,12 +19,15 @@ var Serializer = function(opts) {
 		valDelim	: ',',
 		kPre		: '',
 		kPost		: '',
-		vPre		: '',
-		vPost		: '',
+		vPre		: '"',
+		vPost		: '"',
 		repeatKey	: true
 	});
 };
 
+/*
+ *	Formats a flag 'key' with an optional prefix/suffix
+ */
 Serializer.prototype.formatKey 		= function(key) {
 
 	return [this.opts.kPre,
@@ -24,6 +35,9 @@ Serializer.prototype.formatKey 		= function(key) {
 			this.opts.kPost].join('');
 };
 
+/*
+ *	Formats a flag value with an optional prefix/suffix
+ */
 Serializer.prototype.formatValue	= function(val) {
 
 	return [this.opts.vPre,
@@ -31,6 +45,17 @@ Serializer.prototype.formatValue	= function(val) {
 			this.opts.vPost].join('');
 };
 
+/*
+ *	This is the main serialization method, it reduces an object
+ * 	to a string of flags, if `repeatKey` is true, array values
+ *	will have the key repeated for each occurance of the value.
+ *
+ *	e.g. flag="val1" flag="val2" 
+ *
+ *	Default flag format is key="val", if you wanted to enforce
+ *	`--` at the start of a flag, you could set the `kPre` property
+ *	to `--`.
+ */
 Serializer.prototype.serializeObject 	= function(args) {
 
 	var self = this, s;
@@ -70,10 +95,14 @@ Serializer.prototype.serializeObject 	= function(args) {
 	return s.substr(0, s.length - self.opts.flagDelim.length);
 }
 
+/**
+ *	Entry point for serialization, does some type checking
+ *	and then defers to the relevant function.
+ */
 Serializer.prototype.serialize 			= function(arg) {
 
 	if (_.isUndefined(arg))
-		throw 'args must be defined';
+		throw new Error('`arg` must be defined');
 
 	if (_.isString(arg)) {
 
