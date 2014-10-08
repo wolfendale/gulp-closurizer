@@ -8,47 +8,39 @@ var _			= require('lodash'),
 
 const PLUGIN_NAME	= 'gulp-closure';
 
-var plugin 		= function(opts, c_opts, j_opts) {
+var plugin 			= function(opts) {
 
 	/*
 	 *	Set up default options for the plugin.
 	 */
-	opts 		= opts || {};
-	opts 		= _.defaults(opts, {
+	opts 			= opts || {};
 
-		debug		: false,
+	opts.plugin 	= _.defaults(opts.plugin || {}, {
+
+		debug 		: false,
 		compiler 	: path.resolve('closure/compiler.jar'),
 		flagfile 	: 'flagfile.tmp',
-		output 		: 'output.min.js'
+		output 		: 'output.min.js',
+		maxBuffer 	: 20 * 1024 * 1024
 	});
 
-	/*
-	 *	Set up default options for the compiler.
-	 */
-	c_opts 			= c_opts || {};
-	c_opts 			= _.defaults(c_opts, {});
-
-	/*
-	 *	Set up default options to be passed to the `java` instance.
-	 */
-	j_opts 			= j_opts || {};
-	j_opts			= _.defaults(j_opts, {});
+	opts.compiler 	= opts.compiler || {};
+	opts.java 		= opts.java 	|| {};
 
 	/*
 	 *	Error catching code for unsupported compiler options.
-	 *	TODO: Add messages for each unsupported flag.
 	 *
 	 *	Wrapped in a closure so we don't pollute the plugin namespace.
 	 */
 	(function() {
 
 		var unsupported = {
-			'--module' 				: '',
-			'--flag_file'			: '',
-			'--js_output_file' 		: '',
+			'--module' 				: 'This plugin does not currently support module creation.',
+			'--flag_file'			: 'This plugin uses --flag_file internally, just pass options in the configuration object.',
+			'--js_output_file' 		: 'This plugin outputs to stdout so that it can be piped on to other gulp tasks. Utilise `gulp.dest` in your task instead.',
 		},
 
-			invalidOpts = _.intersection(Object.keys(c_opts), Object.keys(unsupported));
+			invalidOpts = _.intersection(Object.keys(opts.compiler), Object.keys(unsupported));
 
 		if (invalidOpts.length > 0) {
 
@@ -69,7 +61,7 @@ var plugin 		= function(opts, c_opts, j_opts) {
 	 *	NOTE: We require the Compiler module here as we will have parsed the opts now.
 	 */
 	var files 		= [],
-		Compiler 	= require('./compiler')(opts),
+		Compiler 	= require('./compiler'),
 
 	/*
 	 *	This function collects all files that are buffers and adds them to the files array
@@ -91,7 +83,7 @@ var plugin 		= function(opts, c_opts, j_opts) {
 	flush			= function(fn) {
 
 		var self 		= this,
-			compiler 	= new Compiler(opts.compiler, c_opts, j_opts);
+			compiler 	= new Compiler(opts);
 
 		compiler.compile(files)
 		.then(function(contents) {

@@ -1,4 +1,5 @@
 var _	 	= require('lodash'),
+	glob 	= require('glob'),
 	gutil	= require('gulp-util');
 
 /*
