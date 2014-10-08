@@ -1,5 +1,5 @@
 {
-  "name": "gulp-closure",
+  "name": "gulp-closurizer",
   "version": "0.9.9",
   "description": "A gulp plugin for the Google Closure Compiler",
   "main": "index.js",
