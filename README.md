@@ -12,7 +12,7 @@ Make sure that you have a copy of the [closure compiler jar](https://github.com/
 
 Install the plugin with
 
-`npm install gulp-closure --save-dev`
+`npm install gulp-closurizer --save-dev`
 
 example gulp setup
 ------------------
