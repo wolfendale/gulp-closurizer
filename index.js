@@ -1,7 +1,7 @@
 var _			= require('lodash'),
 	path		= require('path'),
 	through 	= require('through2'),
-	tmp			= require('tmp'),
+	fs 			= require('fs-extra'),
 	gutil		= require('gulp-util'),
 	child_p		= require('child_process'),
 	serializer 	= require('./serializer');
@@ -18,7 +18,9 @@ var plugin 			= function(opts) {
 	opts.plugin 	= _.defaults(opts.plugin || {}, {
 
 		debug 		: false,
+		mapComment	: true,
 		compiler 	: path.resolve('closure/compiler.jar'),
+		tmpdir 		: 'tmp',
 		flagfile 	: 'flagfile.tmp',
 		output 		: 'output.min.js',
 		maxBuffer 	: 20 * 1024 * 1024
@@ -38,6 +40,11 @@ var plugin 			= function(opts) {
 			'--module' 				: 'This plugin does not currently support module creation.',
 			'--flag_file'			: 'This plugin uses --flag_file internally, just pass options in the configuration object.',
 			'--js_output_file' 		: 'This plugin outputs to stdout so that it can be piped on to other gulp tasks. Utilise `gulp.dest` in your task instead.',
+			'--help'	 			: '',
+			'--print_ast'			: '',
+			'--print_pass_graph'	: '',
+			'--print_tree'			: '',
+			'--translations_file'	: ''
 		},
 
 			invalidOpts = _.intersection(Object.keys(opts.compiler), Object.keys(unsupported));
@@ -70,9 +77,22 @@ var plugin 			= function(opts) {
 	 */
 	collect 		= function(file, encoding, fn) {
 
-		if (file.isNull() || file.isStream()) return fn(); // Should we log a warning?
+		if (file.isNull()) { 
+			return fn(null, file);
+		}
+
+		if (file.isStream()) {
+			return fn(new gutil.Error(PLUGIN_NAME, 'Streams are not supported'));
+		}
 
 		files.push(file);
+
+		if (!_.isUndefined(opts.compiler['--create_source_map']) &&
+				opts.compiler['--create_source_map'] !== null) {
+
+			this.push(file);
+		}
+
 		return fn();
 	},
 
@@ -88,14 +108,43 @@ var plugin 			= function(opts) {
 		compiler.compile(files)
 		.then(function(contents) {
 
-			var file 		= files[0].clone();
+			var outfile, mapfile, mappath;
 
-			file.path 		= file.base + opts.output;
-			file.contents 	= contents;
+			/*
+			 *	Create the new output vinyl file
+			 */
+			outfile 			= files[0].clone();
+			outfile.path 		= path.join(outfile.base, opts.plugin.output);
+			outfile.contents 	= contents;
 
-			self.push(file);
+			mappath 			= path.join(opts.plugin.tmpdir, opts.compiler['--create_source_map']);
+			if (!_.isUndefined(opts.compiler['--create_source_map']) &&
+				opts.compiler['--create_source_map'] !== null) {
+
+				// Create the sourcemap file
+				mapfile 			= files[0].clone();
+				mapfile.path		= path.join(mapfile.base, opts.compiler['--create_source_map']);
+				mapfile.contents 	= fs.readFileSync(mappath);
+
+				self.push(mapfile);
+
+				// Add source map comment to output file.
+				if (opts.plugin.mapComment === true) {
+
+					outfile.contents = Buffer.concat([outfile.contents,
+						new Buffer('//# sourceMappingURL=' + opts.compiler['--create_source_map'], 'utf-8')]);
+				}
+			}
+
+			// remove temp folder
+			if (fs.existsSync(opts.plugin.tmpdir)) {
+				fs.remove(opts.plugin.tmpdir);
+			}
+
+			self.push(outfile);
 			fn();
-		});
+		})
+		.fail(gutil.log);
 	};
 
 	/*

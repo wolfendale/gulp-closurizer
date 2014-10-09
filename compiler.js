@@ -2,127 +2,21 @@ var child_p 	= require('child_process'),
 	q			= require('q'),
 	_			= require('lodash'),
 	gutil 		= require('gulp-util'),
-	tmp 		= require('tmp'),
 	fs 			= require('fs-extra'),
 	Serializer	= require('./serializer'),
 	path		= require('path'),
 
 	serializer 	= new Serializer();
 
-/**
- *	@constructor
- *	
+/*	
  *	This sets up the compiler state with serialized flags for both the compiler
  *	and for the java instance.
  */
 var Compiler 	= function(opts) {
 
-	this.path 		= opts.plugin.compiler;
-	this.maxBuffer 	= opts.plugin.maxBuffer;
-	this.debug		= opts.plugin.debug;
-	this.flagfile 	= opts.plugin.flagfile;
-	this.c_opts		= serializer.serialize(opts.compiler);
-	this.args 		= ['-jar', serializer.serialize(opts.java), this.path];
-};
-
-/*
- *	Setup method which creates temporary files and directories for the compilation
- *	Returns a promise that contains the path to the flagfile with all of the compiler
- * 	options contained.
- */
-Compiler.prototype._setup 	= function(files) {
-
-	var self = this, mkTmpDir, mkTmpFiles, mkFlagFile, deferred;
-
-	/*
-	 *	This function uses the tmp library to create a temporary directory
-	 *	in the project folder which will be cleaned up after the plugin exits.
-	 *	It then returns a promise which contains the path to the temp folder.
-	 */
-	mkTmpDir 	= function() {
-
-		var deferred 	= q.defer();
-
-		q.ninvoke(tmp, 'dir', {dir: '.', unsafeCleanup: !self.debug})
-		.then(function(tmpdir) {
-
-			deferred.resolve(tmpdir[0]);
-		})
-		.fail(deferred.reject);
-
-		return deferred.promise;
-	};
-
-	/*
-	 *	This function takes the list of files that have been passed by gulp
-	 *	and writes them into the temporary folder, we do this instead of
-	 *	just reading the original files in case there have been other changes
-	 *	made to them in the gulp pipeline.
-	 *
-	 *	We then return a promise which contains an array holding the tmp dir path
-	 *	and the paths of all of the temporary js files within.
-	 */
-	mkTmpFiles 	= function(tmpdir) {
-
-		var deferred	= q.defer();
-
-		q.all(_.map(files, function(file) {
-
-			var deferred	= q.defer(),
-				filePath	= path.resolve(tmpdir + '/' + file.relative);
-
-			q.ninvoke(fs, 'outputFile',
-				filePath,
-				file.contents)
-			.then(function() {
-
-				deferred.resolve(filePath);
-			})
-			.fail(deferred.reject);
-
-			return deferred.promise;
-		}))
-		.then(function(paths) {
-
-			deferred.resolve([tmpdir, paths]);
-		})
-		.fail(deferred.reject);
-
-		return deferred.promise;
-	};
-
-	/*	
-	 *	This function creates a temporary file to hold all of the flags passed to the
-	 *	compiler, this is so that we don't hit the max args of the environment we're
-	 * 	running under.
-	 *
-	 * 	It returns a promise which contains the path to the flagfile to be used when
-	 *	calling the compiler.jar
-	 */
-	mkFlagFile 	= function(tmpdir, files) {
-
-		var deferred 	= q.defer(),
-			filePath	= path.resolve(tmpdir + '/' + self.flagfile),
-			flags 		= [self.c_opts, serializer.serialize({ '--js' : files })].join(' ');
-
-		q.ninvoke(fs, 'writeFile',
-				filePath,
-				flags)
-		.then(function() {
-
-			deferred.resolve(filePath);
-		})
-		.fail(deferred.reject);
-
-		return deferred.promise;
-	};
-
-	/*
-	 *	This is the main body of the method, it sequentially executes the
-	 *	different setup functions and returns a promise which contains the
-	 *	path to the flagfile.
-	 */
-	return mkTmpDir().then(mkTmpFiles).spread(mkFlagFile);
+	this.opts 		= opts;
+	//TODO: remove this.args
+	this.args 		= ['-jar', serializer.serialize(opts.java), opts.plugin.compiler];
 };
 
 /*
@@ -134,33 +28,64 @@ Compiler.prototype._setup 	= function(files) {
  */
 Compiler.prototype.compile = function(files) {
 
-	var self		= this;
+	var self		= this,
+		opts 		= self.opts.plugin,
+		paths 		= [],
+		deferred 	= q.defer();
 
-	return self._setup(files)
-	.then(function(flagfile) {
+	// create temp dir
+	if (!fs.existsSync(self.opts.plugin.tmpdir)) {
+		fs.mkdirSync(self.opts.plugin.tmpdir);
+	}
 
-		var deferred = q.defer();
+	// create temp files
+	for (var i = 0, len = files.length, file; i < len; ++i) {
 
-		self.args.push('--flagfile="' + flagfile + '"');
+		file = files[i];
+		fs.outputFileSync(path.join(self.opts.plugin.tmpdir, file.relative), file.contents);
+		paths.push(file.relative);
+	}
 
-		q.ninvoke(child_p, 'execFile', 'java', self.args, {maxBuffer: self.maxBuffer})
-		.then(function(stdout, stderr) {
+	// is this too hacky?
+	if (!_.isUndefined(self.opts.compiler['--externs'])) {
 
-			// TODO: Some magic with the stdout stuff for error logging.
+		self.opts.compiler['--externs'] = _.map(self.opts.compiler['--externs'],
+			function(file) {
 
-			if (stderr)
+				return path.relative(path.resolve(self.opts.plugin.tmpdir),
+										path.resolve(file));
+			});
+	}
+
+	var outfile = path.relative(path.resolve(self.opts.plugin.tmpdir),
+									path.resolve(self.opts.plugin.output));
+
+	// create flag file
+	fs.outputFileSync(path.join(self.opts.plugin.tmpdir, self.opts.plugin.flagfile), [
+		serializer.serialize(self.opts.compiler),
+		serializer.serialize({'--js_output_file' : self.opts.plugin.output}),
+		serializer.serialize({'--js' : paths})
+		].join(' '));
+
+	self.args.push('--flagfile="' + self.opts.plugin.flagfile + '"');
+
+	// execute the compiler
+	child_p.execFile('java', self.args,
+		{maxBuffer: self.maxBuffer, cwd: self.opts.plugin.tmpdir},
+		function(err, stdout, stderr) {
+
+			if (err || stderr) return deferred.reject(err || stderr);
+
+			if (stderr) {
+
 				gutil.log(stderr);
+				deferred.reject(stderr);
+			}
 
-			if (stdout[1])
-				gutil.log(stdout[1]);
+			deferred.resolve(fs.readFileSync(self.opts.plugin.tmpdir + '/' + self.opts.plugin.output));
+		});
 
-			deferred.resolve(new Buffer(stdout[0]));
-		})
-		.fail(deferred.reject);
-
-		return deferred.promise;
-	})
-	.fail(gutil.log);
+	return deferred.promise;
 };
 
 module.exports = Compiler;

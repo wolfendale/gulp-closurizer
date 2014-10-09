@@ -1,13 +1,17 @@
 var gulp		= require('gulp'),
 	glob		= require('glob'),
 	compiler 	= require('./index.js')({
-		compiler : {
+		plugin 	 	: {
+			debug 	: true,
+		},
+		compiler 	: {
 			'--compilation_level'	: 'ADVANCED_OPTIMIZATIONS',
 			'--angular_pass'		: null,
 			'--warning_level'		: 'VERBOSE',
-			'--externs'				: glob.sync('closure/externs/*.js')
+			'--externs'				: glob.sync('closure/externs/*.js'),
+			'--create_source_map'	: 'source.map'
 		},
-		java : {
+		java 		: {
 			'-XX:+TieredCompilation' : null
 		}
 	});
