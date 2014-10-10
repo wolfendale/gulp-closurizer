@@ -101,6 +101,37 @@ java : {
 }
 ```
 
+Sourcemaps
+----------
+
+[Sourcemaps](http://www.html5rocks.com/en/tutorials/developertools/sourcemaps/) are awesome!
+
+Basic sourcemap example:
+
+```javascript
+var gulp = require('gulp'),
+    compiler = require('gulp-closurizer')({
+        plugin : {
+            mapComment : true,
+            sourcePass : true
+        },
+        compiler: {
+            '--create_source_map' : 'source.map'
+        }
+    });
+    
+gulp.task('compile', function() {
+
+    gulp.src('src/**/*.js')
+    .pipe(compiler)
+    .pipe(gulp.dest('output'));
+});
+```
+
+In this example the `output` folder will contain the `source.map` file, the compiled js file, and the uncompiled source files. The compiled js will also have a comment appended to the bottom which will link it with the soucemap file. 
+
+It's good to bear in mind that the source js files must be available on the server where your sourcemap is hosted. We output the soucemap with relative paths to the files by default.
+
 TODO
 ----
 - Come up with some kind of solution for creating modules.
