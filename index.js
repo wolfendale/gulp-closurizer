@@ -1,12 +1,13 @@
 var _			= require('lodash'),
+ 	q 			= require('q'),
 	path		= require('path'),
 	through 	= require('through2'),
 	fs 			= require('fs-extra'),
 	gutil		= require('gulp-util'),
 	child_p		= require('child_process'),
-	serializer 	= require('./serializer');
+	Serializer 	= require('./serializer');
 
-const PLUGIN_NAME	= 'gulp-closure';
+const PLUGIN_NAME	= 'gulp-closurizer';
 
 var plugin 			= function(opts) {
 
@@ -19,6 +20,7 @@ var plugin 			= function(opts) {
 
 		debug 		: false,
 		mapComment	: true,
+		sourcePass	: true,
 		compiler 	: path.resolve('closure/compiler.jar'),
 		tmpdir 		: 'tmp',
 		flagfile 	: 'flagfile.tmp',
@@ -39,7 +41,7 @@ var plugin 			= function(opts) {
 		var unsupported = {
 			'--module' 				: 'This plugin does not currently support module creation.',
 			'--flag_file'			: 'This plugin uses --flag_file internally, just pass options in the configuration object.',
-			'--js_output_file' 		: 'This plugin outputs to stdout so that it can be piped on to other gulp tasks. Utilise `gulp.dest` in your task instead.',
+			'--js_output_file' 		: 'This plugin outputs to stdout so that it can be piped on to other gulp tasks. Use `gulp.dest` in your task instead.',
 			'--help'	 			: '',
 			'--print_ast'			: '',
 			'--print_pass_graph'	: '',
@@ -63,12 +65,88 @@ var plugin 			= function(opts) {
 	})();
 
 	/*
-	 *	files 	: An array of vinyl files that will be filled by the `collect` function.
-	 *	
-	 *	NOTE: We require the Compiler module here as we will have parsed the opts now.
+	 *	local variables and aliases
 	 */
 	var files 		= [],
-		Compiler 	= require('./compiler'),
+		tmpdir		= opts.plugin.tmpdir,
+		flagfile 	= opts.plugin.flagfile,
+		outpath 	= opts.plugin.output,
+		externs 	= opts.compiler['--externs'] || null,
+		sourceMap 	= opts.compiler['--create_source_map'] || null,
+		sourcePass 	= opts.plugin.sourcePass,
+		serializer 	= new Serializer();
+	
+	/*
+	 *	The main compilation function
+	 */
+	compile 		= function() {
+
+		var self		= this,
+			paths 		= [],
+			deferred 	= q.defer(),
+			args 		= ['-jar', serializer.serialize(opts.java), opts.plugin.compiler];
+
+		// create temp dir
+		if (!fs.existsSync(tmpdir)) {
+			fs.mkdirSync(tmpdir);
+		} else {
+			throw new gutil.PluginError(PLUGIN_NAME, 'temporary directory `' + tmpdir +
+														'` cannot be created. Please choose another directory.');
+		}
+
+		// create temp files
+		for (var i = 0, len = files.length, file; i < len; ++i) {
+
+			file = files[i];
+			fs.outputFileSync(path.join(tmpdir, file.relative), file.contents);
+			paths.push(file.relative);
+		}
+
+		/*
+		 *	IS THIS TOO HACKY?
+		 *	We loop through the given externs files and resolve their paths to the
+		 *	temp dir that is given, as this will be used as the working directory of 
+		 *	the compiler.
+		 */
+
+		if (!_.isUndefined(externs)) {
+
+			// Can't use the alias here.
+			opts.compiler['--externs'] = _.map(externs,
+				function(file) {
+
+					return path.relative(path.resolve(tmpdir),
+											path.resolve(file));
+				});
+		}
+
+		// create flag file
+		fs.outputFileSync(path.join(tmpdir, flagfile), [
+			serializer.serialize(opts.compiler),
+			serializer.serialize({'--js_output_file' : outpath}),
+			serializer.serialize({'--js' : paths})
+			].join(' '));
+
+		args.push('--flagfile="' + flagfile + '"');
+
+		// execute the compiler
+		child_p.execFile('java', args,
+			{maxBuffer: opts.plugin.maxBuffer, cwd: tmpdir},
+			function(err, stdout, stderr) {
+
+				if (err || stderr) return deferred.reject(err || stderr);
+
+				if (stderr) {
+
+					gutil.log(stderr);
+					deferred.reject(stderr);
+				}
+
+				deferred.resolve(fs.readFileSync(tmpdir + '/' + outpath));
+			});
+
+		return deferred.promise;
+	};
 
 	/*
 	 *	This function collects all files that are buffers and adds them to the files array
@@ -87,8 +165,7 @@ var plugin 			= function(opts) {
 
 		files.push(file);
 
-		if (!_.isUndefined(opts.compiler['--create_source_map']) &&
-				opts.compiler['--create_source_map'] !== null) {
+		if (sourceMap !== null && sourcePass === true) {
 
 			this.push(file);
 		}
@@ -102,10 +179,9 @@ var plugin 			= function(opts) {
 	 */
 	flush			= function(fn) {
 
-		var self 		= this,
-			compiler 	= new Compiler(opts);
+		var self 		= this;
 
-		compiler.compile(files)
+		compile(files)
 		.then(function(contents) {
 
 			var outfile, mapfile, mappath;
@@ -114,16 +190,16 @@ var plugin 			= function(opts) {
 			 *	Create the new output vinyl file
 			 */
 			outfile 			= files[0].clone();
-			outfile.path 		= path.join(outfile.base, opts.plugin.output);
+			outfile.path 		= path.join(outfile.base, outpath);
 			outfile.contents 	= contents;
 
-			mappath 			= path.join(opts.plugin.tmpdir, opts.compiler['--create_source_map']);
-			if (!_.isUndefined(opts.compiler['--create_source_map']) &&
-				opts.compiler['--create_source_map'] !== null) {
+			mappath 			= path.join(tmpdir, sourceMap);
+			if (!_.isUndefined(sourceMap) &&
+				sourceMap !== null) {
 
 				// Create the sourcemap file
 				mapfile 			= files[0].clone();
-				mapfile.path		= path.join(mapfile.base, opts.compiler['--create_source_map']);
+				mapfile.path		= path.join(mapfile.base, sourceMap);
 				mapfile.contents 	= fs.readFileSync(mappath);
 
 				self.push(mapfile);
@@ -132,13 +208,13 @@ var plugin 			= function(opts) {
 				if (opts.plugin.mapComment === true) {
 
 					outfile.contents = Buffer.concat([outfile.contents,
-						new Buffer('//# sourceMappingURL=' + opts.compiler['--create_source_map'], 'utf-8')]);
+						new Buffer('//# sourceMappingURL=' + sourceMap, 'utf-8')]);
 				}
 			}
 
 			// remove temp folder
-			if (fs.existsSync(opts.plugin.tmpdir)) {
-				fs.remove(opts.plugin.tmpdir);
+			if (fs.existsSync(tmpdir)) {
+				fs.remove(tmpdir);
 			}
 
 			self.push(outfile);
