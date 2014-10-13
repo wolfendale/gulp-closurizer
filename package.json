@@ -1,6 +1,6 @@
 {
   "name": "gulp-closurizer",
-  "version": "0.9.92",
+  "version": "0.9.93",
   "description": "A gulp plugin for the Google Closure Compiler",
   "main": "index.js",
   "scripts": {
@@ -13,12 +13,10 @@
     "q": "~1.0.1",
     "lodash": "~2.4.1",
     "through2": "~0.6.2",
-    "gulp-file": "^0.1.0",
     "fs-extra": "^0.12.0"
   },
   "devDependencies": {
     "gulp": "~3.8.8",
-    "gulp-sourcemaps": "^1.2.2"
   },
   "keywords": [
     "gulp",
