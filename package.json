@@ -16,7 +16,7 @@
     "fs-extra": "^0.12.0"
   },
   "devDependencies": {
-    "gulp": "~3.8.8",
+    "gulp": "~3.8.8"
   },
   "keywords": [
     "gulp",
