@@ -7,9 +7,7 @@ var gulp		= require('gulp'),
 		compiler 	: {
 			'--compilation_level'	: 'ADVANCED_OPTIMIZATIONS',
 			'--angular_pass'		: null,
-			'--warning_level'		: 'VERBOSE',
-			'--externs'				: glob.sync('closure/externs/*.js'),
-			'--create_source_map'	: 'source.map'
+			'--externs'				: glob.sync('closure/externs/*.js')
 		},
 		java 		: {
 			'-XX:+TieredCompilation' : null

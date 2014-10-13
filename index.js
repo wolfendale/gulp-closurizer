@@ -20,7 +20,7 @@ var plugin 			= function(opts) {
 
 		debug 		: false,
 		mapComment	: true,
-		sourcePass	: true,
+		sourcePass	: false,
 		compiler 	: path.resolve('closure/compiler.jar'),
 		tmpdir 		: 'tmp',
 		flagfile 	: 'flagfile.tmp',
@@ -184,7 +184,7 @@ var plugin 			= function(opts) {
 		compile(files)
 		.then(function(contents) {
 
-			var outfile, mapfile, mappath;
+			var outfile, mapfile;
 
 			/*
 			 *	Create the new output vinyl file
@@ -193,14 +193,12 @@ var plugin 			= function(opts) {
 			outfile.path 		= path.join(outfile.base, outpath);
 			outfile.contents 	= contents;
 
-			mappath 			= path.join(tmpdir, sourceMap);
-			if (!_.isUndefined(sourceMap) &&
-				sourceMap !== null) {
+			if (sourceMap !== null) {
 
 				// Create the sourcemap file
 				mapfile 			= files[0].clone();
 				mapfile.path		= path.join(mapfile.base, sourceMap);
-				mapfile.contents 	= fs.readFileSync(mappath);
+				mapfile.contents 	= fs.readFileSync(path.join(tmpdir, sourceMap));
 
 				self.push(mapfile);
 
@@ -212,15 +210,20 @@ var plugin 			= function(opts) {
 				}
 			}
 
-			// remove temp folder
-			if (fs.existsSync(tmpdir)) {
-				fs.remove(tmpdir);
-			}
-
 			self.push(outfile);
 			fn();
 		})
-		.fail(gutil.log);
+		.fail(function(e) {
+
+			gutil.log(e.toString());
+		})
+		.fin(function() {
+
+			if (fs.existsSync(tmpdir)) {
+				gutil.log('Removing tmpdir...');
+				fs.remove(tmpdir);
+			}
+		});
 	};
 
 	/*
